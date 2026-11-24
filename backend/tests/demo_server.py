@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import tempfile
 
@@ -15,7 +14,7 @@ import uvicorn
 from app.config import Settings
 from app.main import create_app
 
-from .helpers import call_text, turn
+from .helpers import turn
 from .test_team import scripted as team_scripted
 
 ANALYZE = '''import json, random

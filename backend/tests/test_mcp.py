@@ -41,3 +41,20 @@ async def test_broken_server_is_isolated(tmp_path):
         assert tools == [] and "bad" in errors and "github" in errors
     finally:
         await mgr.close_all()
+
+
+async def test_failed_server_is_not_restarted_on_every_run(tmp_path, monkeypatch):
+    s = Settings(sandbox_backend="local", sandbox_local_root=str(tmp_path), mcp_startup_timeout=10)
+    sb = LocalSandbox("sess-mcp-0003", s)
+    await sb.ensure()
+    mgr = McpManager(s, backend_env={})
+    custom = [{"name": "bad", "command": ["/nonexistent/binary"]}]
+    await mgr.ensure("sess-mcp-0003", sb, [], custom)
+    first = mgr._handles["sess-mcp-0003"]["bad"]
+    await mgr.ensure("sess-mcp-0003", sb, [], custom)
+    assert mgr._handles["sess-mcp-0003"]["bad"] is first  # backoff: same handle, no new process attempt
+    import app.mcp.manager as m
+    monkeypatch.setattr(m, "RETRY_AFTER", -1)
+    await mgr.ensure("sess-mcp-0003", sb, [], custom)
+    assert mgr._handles["sess-mcp-0003"]["bad"] is not first  # retried after the back-off window
+    await mgr.close_all()

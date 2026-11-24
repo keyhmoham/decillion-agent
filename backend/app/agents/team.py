@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from ..tools.base import truncate_middle
 from .env import RunEnv
 from .prompts import ORCHESTRATOR, REVIEW_PROMPT, SYNTH_PROMPT
-from .roles import ROLE_NAMES, get_role, roles_for_prompt
+from .roles import ROLE_NAMES, roles_for_prompt
 from .workers import run_worker
 
 log = logging.getLogger(__name__)

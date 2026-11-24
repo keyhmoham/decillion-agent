@@ -161,16 +161,27 @@ class DockerSandbox(Sandbox):
         loop = asyncio.get_running_loop()
         started = time.monotonic()
 
+        # Worker thread -> event loop hand-off. Chunks and a final sentinel travel through the same
+        # call_soon_threadsafe channel, so by the time the sentinel is seen every chunk was delivered
+        # (a plain "schedule callback per chunk" races with the completion of the thread future).
+        queue: asyncio.Queue = asyncio.Queue()
+
+        def push(item: tuple[str, str] | None) -> None:
+            loop.call_soon_threadsafe(queue.put_nowait, item)
+
         def emit(stream: str, text: str) -> None:
-            if on_output is None:
-                return
+            if on_output is not None:
+                push((stream, text))
 
-            def _call():
-                res = on_output(stream, text)
-                if asyncio.iscoroutine(res):
-                    asyncio.ensure_future(res)
-
-            loop.call_soon_threadsafe(_call)
+        async def pump() -> None:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    return
+                if on_output is not None:
+                    res = on_output(*item)
+                    if asyncio.iscoroutine(res):
+                        await res
 
         def run() -> ExecResult:
             api = self.client.api
@@ -208,10 +219,23 @@ class DockerSandbox(Sandbox):
                 duration=time.monotonic() - started,
             )
 
+        def run_and_close() -> ExecResult:
+            try:
+                return run()
+            finally:
+                push(None)
+
+        pump_task = asyncio.create_task(pump())
         try:
-            return await asyncio.to_thread(run)
+            result = await asyncio.to_thread(run_and_close)
+            await pump_task
+            return result
         except asyncio.CancelledError:
+            pump_task.cancel()
             await self.kill(xid)
+            raise
+        except BaseException:
+            pump_task.cancel()
             raise
 
     async def kill(self, exec_id: str) -> None:

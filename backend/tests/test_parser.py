@@ -1,6 +1,5 @@
 import itertools
 
-import pytest
 
 from app.llm.parser import EventKind, StreamParser, parse_completion
 

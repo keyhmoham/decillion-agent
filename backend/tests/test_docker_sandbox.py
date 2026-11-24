@@ -97,7 +97,6 @@ class FakeClient:
 
 @pytest.fixture(autouse=True)
 def patch_docker_errors(monkeypatch):
-    import types
     import docker.errors as de
 
     monkeypatch.setattr(de, "NotFound", NotFound)

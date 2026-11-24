@@ -1,4 +1,3 @@
-import pytest
 
 from app.db.repo import Repo
 from app.memory.store import MemoryStore, to_or_tsquery

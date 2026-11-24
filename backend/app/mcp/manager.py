@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -22,6 +23,7 @@ from ..sandbox.base import Sandbox
 from .catalog import PRESETS
 
 log = logging.getLogger(__name__)
+RETRY_AFTER = 300.0
 
 
 @dataclass
@@ -34,6 +36,7 @@ class McpHandle:
     ready: asyncio.Event = field(default_factory=asyncio.Event)
     stop: asyncio.Event = field(default_factory=asyncio.Event)
     task: asyncio.Task | None = None
+    failed_at: float = 0.0
 
 
 def spec_key(spec: dict[str, Any]) -> str:
@@ -93,6 +96,7 @@ class McpManager:
             raise
         except BaseException as exc:  # noqa: BLE001  (ExceptionGroup from anyio too)
             h.error = _brief(exc)
+            h.failed_at = time.time()
             log.warning("MCP server %s failed: %s", h.name, h.error)
         finally:
             h.ready.set()
@@ -121,7 +125,11 @@ class McpManager:
 
             current = self._handles.setdefault(session_id, {})
             for name in list(current):
-                if name not in wanted or current[name].key != spec_key(wanted[name]) or current[name].error:
+                h = current[name]
+                changed = name not in wanted or h.key != spec_key(wanted[name])
+                # A failed server is retried at most every 5 minutes (a hanging one must not slow every run).
+                retry = bool(h.error) and time.time() - h.failed_at > RETRY_AFTER
+                if changed or retry:
                     await self._stop_handle(current.pop(name))
             new: list[McpHandle] = []
             for name, spec in wanted.items():
@@ -135,6 +143,7 @@ class McpManager:
                     await asyncio.wait_for(h.ready.wait(), timeout=self.s.mcp_startup_timeout)
                 except asyncio.TimeoutError:
                     h.error = f"startup timed out after {self.s.mcp_startup_timeout}s"
+                    h.failed_at = time.time()
             tools: list[BaseTool] = []
             for name, h in current.items():
                 if h.error:

@@ -1,12 +1,11 @@
 import json
 
-import pytest
 
 from app.agents.env import RunEnv
 from app.agents.team import PlanTask, TaskPlan, build_team_graph, normalise_plan, ready_tasks
-from app.agents.workers import make_delegate, run_worker
+from app.agents.workers import make_delegate
 
-from .helpers import call_text, make_ctx, turn
+from .helpers import make_ctx, turn
 
 PLAN_XML = (
     "<parameter=summary>\nBuild and verify\n</parameter>\n<parameter=tasks>\n"

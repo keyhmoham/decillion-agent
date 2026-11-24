@@ -1,5 +1,4 @@
 import asyncio
-import json
 
 import httpx
 import pytest
@@ -8,7 +7,7 @@ from app.config import Settings
 from app.main import create_app
 
 from .conftest import TEST_DB, ScriptedBackend, needs_pg
-from .helpers import call_text, turn
+from .helpers import turn
 
 pytestmark = needs_pg
 
@@ -228,7 +227,7 @@ def test_websocket_streaming(tmp_path):
 
 async def test_team_mode_run_and_delegation_have_no_duplicate_events(app_client):
     client, c, be = app_client
-    from .test_team import PLAN_XML, scripted
+    from .test_team import scripted
 
     be.fn = scripted
     sid = (await client.post("/api/sessions", json={"config": {"mode": "team", "mcp": [], "memory": False}})).json()["id"]
