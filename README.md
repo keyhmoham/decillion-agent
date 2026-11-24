@@ -22,6 +22,10 @@ Everything has a default; copy `.env.example` to `.env` only to change something
 | `ollama` + `model-init` | serves the model; pulls it on first start |
 | `sandbox-image` | builds the per-session agent computer, then exits |
 
+![Agent run with tool cards](docs/screenshots/agent-run.png)
+![Charts, tables and diagrams rendered as cards](docs/screenshots/visual-cards.png)
+![Team mode: task board and per-agent streams](docs/screenshots/team-mode.png)
+
 ## What makes it specific to this model
 
 The Ollama package's `TEMPLATE` is **not** the format the model was trained on (it uses `<thought>`
@@ -80,11 +84,11 @@ responses are in [docs/MODEL_NOTES.md](docs/MODEL_NOTES.md). Highlights:
 |---|---|
 | Prompt/template | byte-equal to `transformers.apply_chat_template` (pytest) |
 | Parser / tool-call parsing | exhaustive chunk-boundary fuzz + malformed-input tests |
-| **Model compatibility** | `scripts/verify_model.py`: 6 live checks passing against the real IQ4_NL GGUF (via llama.cpp) |
-| **Full agentic run, real model** | end-to-end through API + Postgres: model planned, wrote a file, executed it, answered correctly |
-| Graph / team / memory / API | pytest with scripted model + real PostgreSQL (incl. LangGraph Postgres checkpointer, WebSocket) |
-| Frontend | `tsc`, production build, vitest reducer tests, Playwright screenshots/console checks against the real API |
-| **Not run in the build environment** | the `docker compose up` stack itself and the Docker sandbox backend (no Docker daemon was available): compose files are validated with `docker compose config`, the sandbox code is exercised through an equivalent local implementation. Run the checklist below on first deployment. |
+| **Model compatibility** | `scripts/verify_model.py`: all 6 live checks pass against the real IQ4_NL GGUF (served by llama.cpp via llama-cpp-python): direct answer, tool call, typed array/int arguments, tool-result follow-up, structured extraction, think/no-think |
+| **Full agentic run, real model** | end to end through API + PostgreSQL: the model planned, wrote a file, executed it and answered correctly; it also emitted valid `show_chart` / `show_table` calls (nested series/rows) and a valid 4-task team plan via think-then-structured-extraction |
+| Graph / team / memory / API | 99 backend tests: scripted model + real PostgreSQL (LangGraph Postgres checkpointer, WebSocket, memory FTS/trigram), real MCP server over stdio |
+| Frontend | `tsc`, production build, 6 vitest reducer tests, Playwright runs against the real API (agent, team, approvals, auto-scroll, zero console errors) |
+| **Not run in the build environment** | the `docker compose up` stack itself, the Ollama serving path, and the Docker sandbox against a real daemon (no Docker daemon / GitHub-hosted binaries were available). Compose files pass `docker compose config` (incl. GPU/llama.cpp overrides), the backend dependency set resolves, and the Docker sandbox logic is tested against a faithful fake of the docker SDK; the tool layer was exercised through the equivalent local sandbox. Run the checklist below on first deployment. |
 
 First-deployment checklist: `docker compose up --build` → open the UI → *Context → Run self-test*
 (all green) → ask for the "Build a CLI app" example → confirm a `a1-sbx-*` container appears

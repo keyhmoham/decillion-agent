@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Button, Collapse, Input, Progress, Tag, Tooltip } from "antd";
-import { CodeOutlined, EditOutlined, MenuUnfoldOutlined, MenuFoldOutlined, ThunderboltFilled, TeamOutlined, ApiOutlined, LoadingOutlined } from "@ant-design/icons";
+import { Button, Input, Progress, Tag, Tooltip } from "antd";
+import { CodeOutlined, DownOutlined, RightOutlined, EditOutlined, MenuUnfoldOutlined, MenuFoldOutlined, ThunderboltFilled, TeamOutlined, ApiOutlined, LoadingOutlined } from "@ant-design/icons";
+import type { Todo } from "../../api/types";
 import { useActiveSession, useChat, useStore } from "../../store/useStore";
 import { fmtTokens } from "../../lib/format";
 import { Composer } from "./Composer";
@@ -77,24 +78,28 @@ function Welcome() {
   );
 }
 
+function TodoStrip({ todos, running }: { todos: Todo[]; running: boolean }) {
+  const [open, setOpen] = useState(false);
+  const done = todos.filter((t) => t.status === "completed").length;
+  return (
+    <div className="todo-strip">
+      <button className="todo-strip-head" onClick={() => setOpen(!open)} aria-expanded={open}>
+        {open ? <DownOutlined /> : <RightOutlined />}
+        <span className="todo-strip-label">{running && <LoadingOutlined spin />} Plan · {done}/{todos.length} steps done</span>
+      </button>
+      {open && <div className="todo-strip-body"><TodoList todos={todos} compact /></div>}
+    </div>
+  );
+}
+
 export function ChatView() {
   const s = useActiveSession();
   const chat = useChat();
   if (!s) return <div className="welcome"><Welcome /></div>;
-  const doneTodos = chat.todos.filter((t) => t.status === "completed").length;
   return (
     <section className="chat">
       <Header />
-      {chat.todos.length > 0 && (
-        <Collapse
-          size="small" className="todo-strip" ghost
-          items={[{
-            key: "todos",
-            label: <span className="todo-strip-label">{chat.running && <LoadingOutlined spin />} Plan · {doneTodos}/{chat.todos.length} steps done</span>,
-            children: <TodoList todos={chat.todos} compact />,
-          }]}
-        />
-      )}
+      {chat.todos.length > 0 && <TodoStrip todos={chat.todos} running={chat.running} />}
       {chat.items.length === 0 && !chat.running ? <Welcome /> : <Timeline items={chat.items} running={chat.running} />}
       {chat.running && chat.status && <div className="status-line"><LoadingOutlined spin /> {chat.status}</div>}
       <Composer />

@@ -15,14 +15,14 @@ const ICONS: Record<Card["kind"], React.ReactNode> = {
 
 function TableCard({ data }: { data: { columns: string[]; rows: any[][]; caption?: string } }) {
   const columns = data.columns.map((c, i) => ({
-    title: c, dataIndex: i, key: i, ellipsis: true,
+    title: c, dataIndex: i, key: i,
     render: (v: any) => (v === null || v === undefined ? <span className="muted">—</span> : typeof v === "boolean" ? <Tag color={v ? "green" : "red"}>{String(v)}</Tag> : String(v)),
     sorter: (a: any, b: any) => (typeof a[i] === "number" && typeof b[i] === "number" ? a[i] - b[i] : String(a[i]).localeCompare(String(b[i]))),
   }));
   const rows = data.rows.map((r, k) => ({ key: k, ...r }));
   return (
     <>
-      <Table size="small" columns={columns} dataSource={rows} pagination={rows.length > 10 ? { pageSize: 10, size: "small", showSizeChanger: false } : false} scroll={{ x: "max-content" }} />
+      <Table size="small" columns={columns} dataSource={rows} pagination={rows.length > 10 ? { pageSize: 10, size: "small", showSizeChanger: false } : false} />
       {data.caption && <div className="card-caption">{data.caption}</div>}
     </>
   );

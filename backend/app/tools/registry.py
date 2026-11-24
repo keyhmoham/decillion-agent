@@ -56,6 +56,11 @@ def build_tools(
         elif g == "handoff":
             add(build_handoff_tool(ctx))
     for t in extra or []:
+        # MCP tools: honour the server's readOnlyHint, otherwise treat them as mutating (gated by "ask" mode).
+        meta = dict(t.metadata or {})
+        meta["mutating"] = not meta.get("readOnlyHint", False)
+        meta["category"] = "mcp"
+        t = t.model_copy(update={"metadata": meta})
         if t.name in tools:  # name clash with a native tool: namespace the MCP one
             t = t.model_copy(update={"name": f"mcp_{t.name}"})
         tools.setdefault(t.name, t)

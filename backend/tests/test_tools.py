@@ -124,3 +124,19 @@ async def test_memory_tools(toolbox):
     assert ctx.store.core["user"] == "Name: Sam"
     assert "Too long" in await call(t, "core_memory_update", block="notes", content="x" * 2000)
     assert "Memory deleted" in await call(t, "memory_forget", memory_id="x" * 36)
+
+
+async def test_mcp_tools_are_gated_unless_declared_read_only(tmp_path):
+    from langchain_core.tools import StructuredTool
+
+    ctx, *_ = make_ctx(tmp_path)
+
+    async def noop(**kw):
+        return "ok"
+
+    ro = StructuredTool.from_function(coroutine=noop, name="get_thing", description="d", metadata={"readOnlyHint": True})
+    rw = StructuredTool.from_function(coroutine=noop, name="git_commit", description="d", metadata={"readOnlyHint": False})
+    unknown = StructuredTool.from_function(coroutine=noop, name="mystery", description="d")
+    tools = {t.name: t for t in build_tools(ctx, ("readonly",), extra=[ro, rw, unknown])}
+    assert tools["get_thing"].metadata["mutating"] is False
+    assert tools["git_commit"].metadata["mutating"] is True and tools["mystery"].metadata["mutating"] is True

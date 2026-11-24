@@ -40,7 +40,7 @@ body { background: var(--bg); color: var(--text); font-family: Inter, ui-sans-se
 .title-wrap { display: flex; align-items: center; gap: 4px; min-width: 0; } .title-wrap h1 { font-size: 15px; font-weight: 600; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
 .header-chips { display: flex; align-items: center; gap: 6px; } .header-chips .ant-tag { margin: 0; }
 .ctx-meter { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); padding: 0 6px; }
-.todo-strip { border-bottom: 1px solid var(--line); background: #0e1522; } .todo-strip .ant-collapse-header { padding: 6px 18px !important; } .todo-strip-label { font-size: 12.5px; color: var(--accent-2); }
+.todo-strip { border-bottom: 1px solid var(--line); background: #0e1522; } .todo-strip-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 18px; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; } .todo-strip-label { font-size: 12.5px; color: var(--accent-2); } .todo-strip-body { padding: 4px 18px 12px 38px; max-width: 900px; }
 .timeline { flex: 1; overflow-y: auto; min-height: 0; overflow-anchor: none; }
 .timeline-inner { max-width: 860px; margin: 0 auto; padding: 22px 20px 12px; display: flex; flex-direction: column; gap: 12px; }
 .status-line { max-width: 860px; width: 100%; margin: 0 auto; padding: 0 22px 6px; font-size: 12px; color: var(--muted); }

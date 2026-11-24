@@ -38,12 +38,25 @@ export const useStore = create<Store>((set, get) => {
   const patchChat = (sid: string, fn: (c: ChatState) => ChatState) =>
     set((s) => ({ chats: { ...s.chats, [sid]: fn(s.chats[sid] ?? emptyChat()) } }));
 
+  // Streamed tokens arrive in bursts. Applying one store update per event re-renders the whole timeline per
+  // token (and trips React's nested-update guard), so events are queued and reduced once per ~30 ms tick.
+  let queue: ServerEvent[] = [];
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const flush = (sid: string) => {
+    timer = null;
+    const batch = queue;
+    queue = [];
+    if (!batch.length) return;
+    patchChat(sid, (c) => batch.reduce(applyEvent, c));
+    if (batch.some((e) => e.type === "session_updated" || e.type === "run_finished")) get().refreshSessions();
+  };
+
   const onEvent = (sid: string) => (e: ServerEvent) => {
     if (filterRunId && e.run_id && e.run_id !== filterRunId) return; // replay of older runs
     if (e.type === "run_finished" && e.run_id === filterRunId) filterRunId = null;
-    patchChat(sid, (c) => applyEvent(c, e));
-    if (e.type === "session_updated") get().refreshSessions();
-    if (e.type === "run_finished") get().refreshSessions();
+    queue.push(e);
+    if (e.type === "run_finished" || e.type === "approval_request") { if (timer) clearTimeout(timer); flush(sid); return; }
+    timer ??= setTimeout(() => flush(sid), 30);
   };
 
   return {
@@ -67,6 +80,8 @@ export const useStore = create<Store>((set, get) => {
     async select(id) {
       socket?.close();
       filterRunId = null;
+      if (timer) { clearTimeout(timer); timer = null; }
+      queue = [];
       set({ activeId: id, connected: false });
       const [session, msgs, st] = await Promise.all([api.session(id), api.messages(id), api.state(id)]);
       const items = itemsFromMessages(msgs, st.running ? st.run_id : null);
