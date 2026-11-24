@@ -1,0 +1,37 @@
+# EXPERIMENTAL alternative model server: llama.cpp `llama-server` instead of Ollama.
+#   docker compose -f docker-compose.yml -f docker-compose.llamacpp.yml up --build
+# The agent talks to it through /v1/completions in raw mode (the same native-template path as with Ollama).
+services:
+  ollama:
+    profiles: ["disabled"]
+  model-init:
+    profiles: ["disabled"]
+  llamacpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    restart: unless-stopped
+    command: >
+      -hf hotdogs/Agents-A1-4B-kimi-Preview-heretic-GGUF:IQ4_NL
+      -c ${LLM_NUM_CTX:-65536} --host 0.0.0.0 --port 8080 --flash-attn on -np 2
+    volumes:
+      - llamacpp:/root/.cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      retries: 60
+  backend:
+    depends_on:
+      postgres:
+        condition: service_healthy
+      llamacpp:
+        condition: service_healthy
+      sandbox-image:
+        condition: service_completed_successfully
+      model-init:
+        required: false
+        condition: service_completed_successfully
+    environment:
+      LLM_BACKEND: openai
+      LLM_BASE_URL: http://llamacpp:8080
+      LLM_MODEL: agents-a1-4b
+volumes:
+  llamacpp:
