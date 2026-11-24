@@ -62,7 +62,7 @@ instructions, previous tool calls/results are *not rendered at all* (multi-step 
 | Reasoning can ramble / loop | **thinking budget** (default 1800 tokens) and a repetition detector: the `<think>` block is closed for the model and generation continues |
 | A turn can end empty after `</think>` | automatic retry in no-think mode at lower temperature |
 | Fine-tuned at 4K tokens, long contexts degrade | history compaction at 28K prompt tokens (micro-trim of old tool output first, then model-written structured summary) |
-| Prompt eval dominates on CPU | system prompt + tool block are byte-stable per session so llama.cpp/Ollama reuse the KV prefix; harness nudges are appended as tool responses (a real user message would change the replay window) |
+| Prompt evaluation dominates latency on CPU (first call ~4.3k tokens: system prompt + 25 tool schemas); the hybrid linear-attention architecture cannot rewind its recurrent state, and the llama-cpp-python server we tested with re-evaluated the full prompt on every call | system prompt + tool block are byte-stable per session and harness nudges are appended as tool responses, which maximises prefix reuse on servers that support it (llama.cpp `llama-server`, Ollama); on CPU-only hosts expect minutes per agent step - use a GPU for interactive speeds, and keep the enabled tool/MCP list short |
 | Published sampling | temperature 0.6, top-p 0.9, top-k 35, min-p 0.05, repeat-penalty 1.05 (from the Ollama params layer) |
 
 ## Reproducing the verification

@@ -103,8 +103,10 @@ export const useStore = create<Store>((set, get) => {
     },
 
     async send(text) {
+      if (!text.trim()) return;
+      if (!get().activeId) await get().newSession(); // first message from the empty welcome screen
       const sid = get().activeId;
-      if (!sid || !text.trim()) return;
+      if (!sid) return;
       const cfg = get().sessions.find((s) => s.id === sid)?.config;
       patchChat(sid, (c) => ({ ...c, running: true, error: undefined, status: "Sending…" }));
       try {

@@ -157,7 +157,7 @@ class DockerSandbox(Sandbox):
         # `timeout` guarantees the command ends; `setsid` lets us kill the whole process tree.
         # The command travels in the environment (A1_CMD) so no quoting layer can corrupt it; the
         # `a1x-<id>` marker (bash's $0) lets `kill()` find the process tree again.
-        argv = ["setsid", "timeout", "-k", "3", str(timeout), "bash", "-c", 'eval "$A1_CMD"', f"a1x-{xid}"]
+        argv = ["setsid", "-w", "timeout", "-k", "3", str(timeout), "bash", "-c", 'eval "$A1_CMD"', f"a1x-{xid}"]
         loop = asyncio.get_running_loop()
         started = time.monotonic()
 

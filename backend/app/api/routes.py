@@ -100,9 +100,7 @@ async def get_session(sid: str, c: Container = Depends(get_container)):
 async def patch_session(sid: str, body: SessionPatch, c: Container = Depends(get_container)):
     await _session_or_404(c, sid)
     s = await c.repo.update_session(sid, title=body.title, config=body.config)
-    if body.config and "mcp" in body.config or body.config and "custom_mcp" in body.config:
-        pass  # applied lazily at the next run
-    return s
+    return s  # MCP selection changes are applied lazily at the start of the next run
 
 
 @protected.delete("/sessions/{sid}", status_code=204)

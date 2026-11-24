@@ -37,7 +37,7 @@ export function TodoList({ todos, compact }: { todos: Todo[]; compact?: boolean 
   const done = todos.filter((t) => t.status === "completed").length;
   return (
     <div className="todos">
-      {!compact && <Progress percent={todos.length ? Math.round((done / todos.length) * 100) : 0} size="small" status="active" />}
+      {!compact && todos.length > 0 && <Progress percent={todos.length ? Math.round((done / todos.length) * 100) : 0} size="small" status="active" />}
       {todos.map((t, i) => (
         <div key={i} className={`todo todo-${t.status}`}>
           {t.status === "completed" ? <CheckCircleFilled className="good" /> : t.status === "in_progress" ? <LoadingOutlined className="info" spin /> : <ClockCircleOutlined className="muted" />}
