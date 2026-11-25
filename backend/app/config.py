@@ -70,6 +70,9 @@ class Settings(BaseSettings):
 
     # ---- features ------------------------------------------------------------------------
     enable_web_tools: bool = True
+    search_providers: str = "searxng,brave,bing,duckduckgo"  # tried in this order
+    searxng_url: str = ""
+    brave_api_key: str = ""
     web_fetch_max_chars: int = 12000
     mcp_startup_timeout: int = 90
 

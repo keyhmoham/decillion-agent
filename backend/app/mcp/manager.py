@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import shlex
+import shutil
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -84,6 +86,24 @@ class McpManager:
             spec["env"] = penv
         return spec
 
+    # ------------------------------------------------------------------ pre-flight diagnostics
+    async def preflight(self, sandbox: Sandbox, spec: dict[str, Any], binary: str | None) -> str | None:
+        """Explain *why* a server cannot start instead of surfacing a bare 'No such file or directory'."""
+        if spec.get("transport") != "stdio":
+            return None
+        cmd = spec["command"]
+        if shutil.which(cmd) is None:
+            if cmd == "docker":
+                return ("the 'docker' CLI is not installed in the backend container, so MCP servers cannot be started inside the sandbox. "
+                        "Rebuild the backend image (docker compose build backend).")
+            return f"command '{cmd}' not found on the backend host"
+        if binary and sandbox.backend == "docker":
+            res = await sandbox.exec(f"command -v {shlex.quote(binary)}", timeout=15)
+            if not res.ok:
+                return (f"'{binary}' is not installed in the sandbox image ({self.s.sandbox_image}). "
+                        f"Rebuild it: docker compose build sandbox-image (existing sessions keep their old container; start a new session).")
+        return None
+
     # ------------------------------------------------------------------ lifecycle
     async def _run_handle(self, h: McpHandle) -> None:
         try:
@@ -108,6 +128,7 @@ class McpManager:
         lock = self._locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             wanted: dict[str, dict[str, Any]] = {}
+            binaries: dict[str, str | None] = {}
             errors: dict[str, str] = {}
             for pid in selected:
                 spec = self._spec_for_preset(sandbox, pid)
@@ -115,6 +136,7 @@ class McpManager:
                     errors[pid] = "unknown preset or missing credentials"
                 else:
                     wanted[pid] = spec
+                    binaries[pid] = PRESETS[pid].binary
             for item in custom or []:
                 name = str(item.get("name") or "custom")[:32]
                 spec = self._spec_for_custom(sandbox, item)
@@ -122,6 +144,8 @@ class McpManager:
                     errors[name] = "invalid custom server definition"
                 else:
                     wanted[name] = spec
+                    argv = item.get("command")
+                    binaries[name] = (shlex.split(argv)[0] if isinstance(argv, str) and argv.strip() else (argv[0] if argv else None))
 
             current = self._handles.setdefault(session_id, {})
             for name in list(current):
@@ -135,8 +159,13 @@ class McpManager:
             for name, spec in wanted.items():
                 if name not in current:
                     h = McpHandle(key=spec_key(spec), name=name, spec=spec)
-                    h.task = asyncio.create_task(self._run_handle(h), name=f"mcp-{session_id[:6]}-{name}")
                     current[name] = h
+                    problem = await self.preflight(sandbox, spec, binaries.get(name))
+                    if problem:
+                        h.error, h.failed_at = problem, 0.0  # cheap to re-check: never back off on pre-flight problems
+                        h.ready.set()
+                        continue
+                    h.task = asyncio.create_task(self._run_handle(h), name=f"mcp-{session_id[:6]}-{name}")
                     new.append(h)
             for h in new:
                 try:

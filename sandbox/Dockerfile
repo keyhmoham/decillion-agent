@@ -14,6 +14,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MPLBACKEND=Agg \
     UV_TOOL_DIR=/opt/uv-tools \
     UV_TOOL_BIN_DIR=/usr/local/bin \
+    UV_PYTHON_PREFERENCE=only-system \
+    UV_PYTHON_DOWNLOADS=never \
     PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
     NPM_CONFIG_UPDATE_NOTIFIER=false
 
@@ -42,9 +44,15 @@ RUN npm install -g --no-fund --no-audit \
       @upstash/context7-mcp \
       @playwright/mcp \
  && npm cache clean --force
+# Fail the build (not the first chat) if any MCP server binary is missing or not runnable by the agent user.
+RUN for b in mcp-server-time mcp-server-git mcp-server-fetch mcp-server-sqlite mcp-server-filesystem mcp-server-memory \
+             mcp-server-sequential-thinking mcp-server-github mcp-server-brave-search context7-mcp playwright-mcp; do \
+      command -v "$b" >/dev/null || { echo "MISSING MCP BINARY: $b" >&2; exit 1; }; \
+    done
+
 RUN if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then npx --yes playwright@latest install --with-deps chromium; fi
 
-# Sandboxed web access helper (SSRF-guarded fetch/search) used by the web_fetch / web_search tools
+# Sandboxed web access helper (SSRF-guarded fetch) used by the web_fetch tool
 COPY backend/app/tools/web_impl.py /usr/local/lib/a1_web.py
 
 RUN useradd --create-home --uid 1000 --shell /bin/bash agent \
@@ -52,6 +60,9 @@ RUN useradd --create-home --uid 1000 --shell /bin/bash agent \
  && chown -R agent:agent /workspace /tmp/a1jobs /home/agent \
  && git config --system user.name "agent" && git config --system user.email "agent@sandbox.local" \
  && git config --system init.defaultBranch main && git config --system safe.directory '*'
+
+# The agent user must be able to *run* the python MCP servers (their venv interpreter must not live under /root).
+RUN su agent -c 'for t in time git fetch sqlite; do py=$(readlink -f /opt/uv-tools/mcp-server-$t/bin/python) && test -x "$py" || { echo "mcp-server-$t interpreter not usable by agent: $py" >&2; exit 1; }; done'
 
 USER agent
 WORKDIR /workspace

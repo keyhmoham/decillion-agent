@@ -19,6 +19,7 @@ from .llm.backends import make_backend
 from .mcp.manager import McpManager
 from .memory.store import MemoryStore
 from .sandbox.manager import SandboxManager
+from .tools.search import SearchService, build_providers
 
 log = logging.getLogger("decillion")
 
@@ -36,6 +37,7 @@ async def build_container(settings: Settings, db: Database, *, checkpointer=None
     n = await c.repo.fail_dangling_runs()
     if n:
         log.warning("marked %d interrupted run(s) as failed", n)
+    c.service.search = c.search = SearchService(build_providers(settings.search_providers, settings.searxng_url, settings.brave_api_key))
     await c.sandboxes.start()
     return c
 

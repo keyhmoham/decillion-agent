@@ -109,6 +109,7 @@ class AgentService:
     buses: dict[str, EventBus] = field(default_factory=dict)
     runs: dict[str, RunHandle] = field(default_factory=dict)
     mcp_warned: dict[str, set] = field(default_factory=dict)
+    search: Any = None
 
     # ------------------------------------------------------------------ helpers
     def bus(self, session_id: str) -> EventBus:
@@ -218,7 +219,7 @@ class AgentService:
             self.runs[session_id].approvals = approvals
             ctx = ToolContext(
                 session_id=session_id, sandbox=sandbox, settings=self.settings, store=store,
-                memory=self.memory if cfg.get("memory", True) else None, events=rec, approvals=approvals,
+                memory=self.memory if cfg.get("memory", True) else None, events=rec, approvals=approvals, search=self.search,
                 approval_mode=cfg.get("approval", "auto"), agent="main",
             )
 

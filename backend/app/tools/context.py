@@ -53,6 +53,7 @@ class ToolContext:
     approval_mode: str = "auto"  # auto | ask
     agent: str = "main"
     # set by the graph builder
+    search: Any = None  # app.tools.search.SearchService
     delegate: Callable[[str, str], Awaitable[str]] | None = None
     handoffs: list[dict[str, Any]] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)

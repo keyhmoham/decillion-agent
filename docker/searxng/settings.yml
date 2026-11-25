@@ -1,0 +1,15 @@
+# Private SearXNG instance used by the agents' web_search tool (JSON API, not published to the host).
+use_default_settings: true
+general:
+  instance_name: "decillion-search"
+  enable_metrics: false
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats: [html, json]      # json is required by the backend
+server:
+  limiter: false             # private network only; the bot limiter would block our own backend
+  image_proxy: false
+  # secret_key is injected through the SEARXNG_SECRET environment variable (see docker-compose.yml)
+ui:
+  static_use_hash: true

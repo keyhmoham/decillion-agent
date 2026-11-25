@@ -186,7 +186,7 @@ async def test_mcp_stdio_goes_through_docker_exec_inside_the_sandbox():
     sb, _ = box(FakeClient())
     cmd, args, env = sb.mcp_stdio(["mcp-server-time"], {"TOKEN": "x"})
     assert cmd == "docker" and args[:2] == ["exec", "-i"] and "a1-sbx-0123abcd0000" in args
-    assert args[-1] == "mcp-server-time" and "TOKEN=x" in args and env is None
+    assert args[-1] == "mcp-server-time" and "TOKEN=x" in args and "PATH" in env
 
 
 async def test_stop_and_destroy():
