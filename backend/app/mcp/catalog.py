@@ -1,4 +1,4 @@
-"""Catalog of popular MCP servers that run *inside the session sandbox* (stdio via ``docker exec -i``).
+"""Catalog of popular MCP servers that run *inside the session sandbox* (stdio over a Docker SDK exec stream).
 
 The sandbox image pre-installs the packages below, so enabling a server costs a process start,
 not a download.  A 4B model degrades with long tool lists, therefore only three small servers are

@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install uv ${PY_PACKAGES}
 
 # Popular MCP servers, pre-installed so enabling one in the UI never needs a download.
-# (Python servers via uv tools, Node servers globally; each runs over stdio via `docker exec -i`.)
+# (Python servers via uv tools, Node servers globally; each runs over stdio through an SDK exec stream into this container.)
 RUN uv tool install mcp-server-time \
  && uv tool install mcp-server-git \
  && uv tool install mcp-server-fetch \

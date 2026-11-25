@@ -68,8 +68,8 @@ class _StubDockerSandbox:
     def __init__(self, have: set[str]):
         self.have = have
 
-    def mcp_stdio(self, argv, env=None):
-        return "docker", ["exec", "-i", "c", *argv], {"PATH": "/usr/bin"}
+    def mcp_spec(self, argv, env=None):
+        return {"transport": "sandbox_exec", "argv": list(argv), "env": dict(env or {})}
 
     async def exec(self, command, **kw):
         from app.sandbox.base import ExecResult
@@ -78,20 +78,10 @@ class _StubDockerSandbox:
         return ExecResult(0 if binary in self.have else 1)
 
 
-async def test_missing_docker_cli_gives_actionable_error(monkeypatch):
-    import app.mcp.manager as m
-
-    monkeypatch.setattr(m.shutil, "which", lambda c: None)
-    mgr = McpManager(Settings(sandbox_backend="docker"), backend_env={})
-    tools, errors = await mgr.ensure("s1", _StubDockerSandbox(set()), ["time"])
-    assert tools == [] and "docker' CLI is not installed in the backend container" in errors["time"]
-    assert "docker compose build backend" in errors["time"]
-
-
 async def test_missing_binary_in_sandbox_image_is_named(monkeypatch):
     import app.mcp.manager as m
 
-    monkeypatch.setattr(m.shutil, "which", lambda c: "/usr/bin/docker")
+    monkeypatch.setattr(m.shutil, "which", lambda c: None)  # proves no docker CLI (or any host binary) is needed
     mgr = McpManager(Settings(sandbox_backend="docker", sandbox_image="decillion-sandbox:latest"), backend_env={})
     _, errors = await mgr.ensure("s2", _StubDockerSandbox({"mcp-server-git"}), ["time", "git"])
     assert "'mcp-server-time' is not installed in the sandbox image (decillion-sandbox:latest)" in errors["time"]
@@ -102,7 +92,7 @@ async def test_missing_binary_in_sandbox_image_is_named(monkeypatch):
 async def test_preflight_failures_are_rechecked_every_run(monkeypatch):
     import app.mcp.manager as m
 
-    monkeypatch.setattr(m.shutil, "which", lambda c: "/usr/bin/docker")
+    monkeypatch.setattr(m.shutil, "which", lambda c: None)  # proves no docker CLI (or any host binary) is needed
     mgr = McpManager(Settings(sandbox_backend="docker"), backend_env={})
     sb = _StubDockerSandbox(set())
     _, e1 = await mgr.ensure("s3", sb, ["time"])
@@ -112,14 +102,8 @@ async def test_preflight_failures_are_rechecked_every_run(monkeypatch):
     assert "not installed" not in e2.get("time", "")  # no 5-minute back-off for cheap pre-flight problems
 
 
-def test_git_preset_bootstraps_a_repository_and_docker_exec_forwards_daemon_env(monkeypatch):
+def test_git_preset_bootstraps_a_repository():
     from app.mcp.catalog import PRESETS
-    from app.sandbox.docker_sandbox import DockerSandbox
 
     argv = PRESETS["git"].argv
     assert argv[0] == "bash" and "git init" in argv[2] and "exec mcp-server-git" in argv[2]
-    monkeypatch.setenv("DOCKER_HOST", "tcp://socket-proxy:2375")
-    sb = DockerSandbox("abcd1234-0000-0000-0000-000000000000", Settings(sandbox_backend="docker"), client=object())
-    cmd, args, env = sb.mcp_stdio(list(argv))
-    assert cmd == "docker" and env["DOCKER_HOST"] == "tcp://socket-proxy:2375" and "PATH" in env
-    assert args[:2] == ["exec", "-i"]

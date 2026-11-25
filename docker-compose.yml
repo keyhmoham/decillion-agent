@@ -45,7 +45,7 @@ services:
       options: { max-size: "1m", max-file: "1" }
 
   ollama:
-    image: ollama/ollama:latest
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
     <<: *restart
     environment:
       OLLAMA_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-30m}
@@ -64,7 +64,7 @@ services:
 
   # One-shot: pull the model into the ollama volume (idempotent, a no-op once present).
   model-init:
-    image: ollama/ollama:latest
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
     depends_on:
       ollama:
         condition: service_healthy
@@ -86,6 +86,7 @@ services:
       context: .
       dockerfile: sandbox/Dockerfile
       args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim-bookworm}
         INSTALL_PLAYWRIGHT: ${SANDBOX_INSTALL_PLAYWRIGHT:-false}
     image: ${SANDBOX_IMAGE:-decillion-sandbox:latest}
     command: ["true"]
@@ -95,6 +96,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim-bookworm}
     image: decillion-backend:latest
     <<: *restart
     depends_on:
@@ -142,6 +145,9 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-alpine}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:1.27-alpine}
     image: decillion-frontend:latest
     <<: *restart
     depends_on:

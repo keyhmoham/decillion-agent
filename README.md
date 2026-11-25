@@ -73,7 +73,7 @@ responses are in [docs/MODEL_NOTES.md](docs/MODEL_NOTES.md). Highlights:
   by agent and user), (2) *archival memory* in Postgres with FTS + trigram + importance + recency
   ranking, de-duplication and scopes (global / session), (3) conversation compaction, (4) automatic
   post-run reflection that saves durable lessons.
-* **MCP** (run inside the session sandbox over `docker exec -i`): time, git, sequential-thinking
+* **MCP** (run inside the session sandbox through an exec stream of the Docker SDK - no `docker` CLI needed): time, git, sequential-thinking
   (default on), fetch, filesystem, knowledge-graph memory, Playwright, Context7, SQLite, GitHub,
   Brave Search. The UI shows the prompt-token cost per server because a 4B model prefers a short tool list.
 * **Sandbox**: one hardened container + workspace volume per session (cap-drop ALL, no-new-privileges,
@@ -103,7 +103,7 @@ Docker CLI/daemon, the sandbox image, every MCP binary inside the session sandbo
 
 | Symptom | Cause / fix |
 |---|---|
-| MCP server error *"docker CLI is not installed in the backend container"* | old backend image: `docker compose build --no-cache backend` (the CLI is copied from the official multi-arch `docker:cli` image, so ARM/Apple Silicon works) |
+| `docker compose build` fails with *403 Forbidden* from `registry-1.docker.io` | Docker Hub is blocked/rate-limited for your network. The build needs no extra images beyond the base images in `.env.example` (`PYTHON_IMAGE`, `NODE_IMAGE`, `NGINX_IMAGE`, `POSTGRES_IMAGE`, `OLLAMA_IMAGE`, `SEARXNG_IMAGE`): point them at a registry mirror you can reach, or configure a Docker registry mirror in the daemon |
 | MCP error *"'mcp-server-xyz' is not installed in the sandbox image"* | `docker compose build --no-cache sandbox-image`, then **start a new session** (existing sessions keep their old container; the build fails if any MCP binary is missing) |
 | `web_search` fails with rate-limit text | DuckDuckGo/Bing throttle scrapers. The bundled `searxng` service is the primary provider; check `docker compose ps searxng`. Optional: set `BRAVE_API_KEY`. Providers that rate-limit are skipped for 90 s and results are cached for 10 min |
 
