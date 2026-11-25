@@ -31,7 +31,7 @@ services:
   # Private metasearch engine (aggregates Google/Bing/DuckDuckGo/Brave/Wikipedia...). It is the primary backend
   # of the web_search tool and avoids the rate limits of scraping a single engine. Not published to the host.
   searxng:
-    image: searxng/searxng:latest
+    image: docker.arvancloud.ir/searxng/searxng:latest
     <<: *restart
     environment:
       SEARXNG_SECRET: ${SEARXNG_SECRET:-decillion-local-searxng-secret-change-me}
