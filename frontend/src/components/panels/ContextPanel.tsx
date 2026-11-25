@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Alert, Button, Descriptions, Progress, Tag } from "antd";
-import { CheckCircleFilled, CloseCircleFilled } from "@ant-design/icons";
+import { CheckCircleFilled, CloseCircleFilled, InfoCircleFilled } from "@ant-design/icons";
 import { api } from "../../api/client";
 import { fmtTokens } from "../../lib/format";
 import { useActiveSession, useChat, useStore } from "../../store/useStore";
@@ -12,6 +12,8 @@ export function ContextPanel() {
   const chat = useChat();
   const [test, setTest] = useState<Awaited<ReturnType<typeof api.selftest>> | null>(null);
   const [busy, setBusy] = useState(false);
+  const [diag, setDiag] = useState<Awaited<ReturnType<typeof api.diagnostics>> | null>(null);
+  const [diagBusy, setDiagBusy] = useState(false);
   const budget = config.model.context_budget;
   const u = { ...session.usage, ...chat.usage };
   return (
@@ -41,6 +43,19 @@ export function ContextPanel() {
         <Descriptions.Item label="Limits">{config.sandbox.cpus} CPU · {config.sandbox.memory} · network {config.sandbox.network}</Descriptions.Item>
       </Descriptions>
       {config.sandbox.backend === "local" && <Alert type="warning" showIcon message="Local sandbox backend is NOT isolated. Use the docker backend in production." />}
+      <h4>Diagnostics</h4>
+      <p className="muted small">Checks Docker, the sandbox image, the MCP server binaries and the web-search providers, and tells you how to fix what is wrong.</p>
+      <Button size="small" loading={diagBusy} onClick={async () => { setDiagBusy(true); try { setDiag(await api.diagnostics(session.id, true)); } finally { setDiagBusy(false); } }}>Run diagnostics</Button>
+      {diag && (
+        <div className="selftest">
+          {diag.checks.map((r) => (
+            <div key={r.name} className="st-row">
+              {r.ok === null ? <InfoCircleFilled className="info" /> : r.ok ? <CheckCircleFilled className="good" /> : <CloseCircleFilled className="bad" />}
+              <div><b>{r.name}</b><div className="muted small">{r.detail}</div>{r.fix && <div className="small warn">{r.fix}</div>}</div>
+            </div>
+          ))}
+        </div>
+      )}
       <h4>Model self-test</h4>
       <p className="muted small">Runs live checks of tool calling, typed arguments, thinking and structured output against the model server.</p>
       <Button size="small" loading={busy} onClick={async () => { setBusy(true); try { setTest(await api.selftest()); } finally { setBusy(false); } }}>Run self-test</Button>

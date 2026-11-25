@@ -1,15 +1,16 @@
 # Build context: repository root  (docker build -f backend/Dockerfile .)
 FROM docker.arvancloud.ir/python:3.12-slim-bookworm
 
-ARG DOCKER_CLI_VERSION=27.3.1
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    # docker CLI only: MCP servers are started inside the sandbox with `docker exec -i`
-    && curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_CLI_VERSION}.tgz" \
-       | tar -xz --strip-components=1 -C /usr/local/bin docker/docker \
-    || echo "WARNING: docker CLI not installed (MCP-in-sandbox will be unavailable)"
+    && rm -rf /var/lib/apt/lists/*
+
+# The docker CLI starts MCP servers inside each sandbox (`docker exec -i`). Copy it from the official image:
+# multi-arch (amd64/arm64 - Apple Silicon!), and the build fails if it is missing instead of silently
+# producing a backend that cannot launch MCP servers.
+COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
+RUN docker --version
 
 WORKDIR /srv
 COPY backend/pyproject.toml ./
