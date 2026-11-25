@@ -6,11 +6,8 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# The docker CLI starts MCP servers inside each sandbox (`docker exec -i`). Copy it from the official image:
-# multi-arch (amd64/arm64 - Apple Silicon!), and the build fails if it is missing instead of silently
-# producing a backend that cannot launch MCP servers.
-COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
-RUN docker --version
+# NOTE: no docker CLI is needed: the backend talks to the Docker daemon through the Python SDK
+# (sandbox lifecycle, exec and MCP-over-exec streams).
 
 WORKDIR /srv
 COPY backend/pyproject.toml ./

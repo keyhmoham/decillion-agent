@@ -19,10 +19,12 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
+from mcp import ClientSession
 
 from ..config import Settings
 from ..sandbox.base import Sandbox
 from .catalog import PRESETS
+from .transport import pipe_stdio_client
 
 log = logging.getLogger(__name__)
 RETRY_AFTER = 300.0
@@ -60,11 +62,7 @@ class McpManager:
         if any(not self.env.get(r) for r in p.requires):
             return None
         env = {k: self.env[v] for k, v in p.env_from_settings.items() if self.env.get(v)}
-        cmd, args, penv = sandbox.mcp_stdio(list(p.argv), env)
-        spec: dict[str, Any] = {"transport": "stdio", "command": cmd, "args": args}
-        if penv:
-            spec["env"] = penv
-        return spec
+        return sandbox.mcp_spec(list(p.argv), env)
 
     def _spec_for_custom(self, sandbox: Sandbox, item: dict[str, Any]) -> dict[str, Any] | None:
         if item.get("url"):
@@ -80,23 +78,15 @@ class McpManager:
             argv = shlex.split(argv)
         if not argv:
             return None
-        cmd, args, penv = sandbox.mcp_stdio(list(argv), item.get("env") or {})
-        spec = {"transport": "stdio", "command": cmd, "args": args}
-        if penv:
-            spec["env"] = penv
-        return spec
+        return sandbox.mcp_spec(list(argv), item.get("env") or {})
 
     # ------------------------------------------------------------------ pre-flight diagnostics
     async def preflight(self, sandbox: Sandbox, spec: dict[str, Any], binary: str | None) -> str | None:
         """Explain *why* a server cannot start instead of surfacing a bare 'No such file or directory'."""
-        if spec.get("transport") != "stdio":
+        if spec.get("transport") not in ("stdio", "sandbox_exec"):
             return None
-        cmd = spec["command"]
-        if shutil.which(cmd) is None:
-            if cmd == "docker":
-                return ("the 'docker' CLI is not installed in the backend container, so MCP servers cannot be started inside the sandbox. "
-                        "Rebuild the backend image (docker compose build backend).")
-            return f"command '{cmd}' not found on the backend host"
+        if spec["transport"] == "stdio" and shutil.which(spec["command"]) is None:
+            return f"command '{spec['command']}' not found on the backend host"
         if binary and sandbox.backend == "docker":
             res = await sandbox.exec(f"command -v {shlex.quote(binary)}", timeout=15)
             if not res.ok:
@@ -105,17 +95,31 @@ class McpManager:
         return None
 
     # ------------------------------------------------------------------ lifecycle
-    async def _run_handle(self, h: McpHandle) -> None:
+    async def _run_handle(self, h: McpHandle, sandbox: Sandbox) -> None:
+        pipe = None
         try:
-            client = MultiServerMCPClient({h.name: h.spec})
-            async with client.session(h.name) as sess:
-                h.tools = await load_mcp_tools(sess, server_name=h.name)
-                h.ready.set()
-                await h.stop.wait()
+            if h.spec.get("transport") == "sandbox_exec":
+                # inside the Docker sandbox, through the SDK (no docker CLI involved)
+                pipe = await sandbox.open_stdio(h.spec["argv"], h.spec.get("env"))
+                async with pipe_stdio_client(pipe) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await asyncio.wait_for(session.initialize(), timeout=self.s.mcp_startup_timeout)
+                        h.tools = await load_mcp_tools(session, server_name=h.name)
+                        h.ready.set()
+                        await h.stop.wait()
+            else:
+                client = MultiServerMCPClient({h.name: h.spec})
+                async with client.session(h.name) as sess:
+                    h.tools = await load_mcp_tools(sess, server_name=h.name)
+                    h.ready.set()
+                    await h.stop.wait()
         except asyncio.CancelledError:
             raise
         except BaseException as exc:  # noqa: BLE001  (ExceptionGroup from anyio too)
             h.error = _brief(exc)
+            tail = pipe.stderr_tail() if pipe is not None else ""
+            if tail:
+                h.error += f" - server said: {tail[-300:]}"
             h.failed_at = time.time()
             log.warning("MCP server %s failed: %s", h.name, h.error)
         finally:
@@ -165,7 +169,7 @@ class McpManager:
                         h.error, h.failed_at = problem, 0.0  # cheap to re-check: never back off on pre-flight problems
                         h.ready.set()
                         continue
-                    h.task = asyncio.create_task(self._run_handle(h), name=f"mcp-{session_id[:6]}-{name}")
+                    h.task = asyncio.create_task(self._run_handle(h, sandbox), name=f"mcp-{session_id[:6]}-{name}")
                     new.append(h)
             for h in new:
                 try:

@@ -159,5 +159,5 @@ class LocalSandbox(Sandbox):
             tar.add(p, arcname=p.name)
         return buf.getvalue()
 
-    def mcp_stdio(self, argv: list[str], env: dict[str, str] | None = None):
-        return argv[0], argv[1:], {**os.environ, **(env or {})}
+    def mcp_spec(self, argv: list[str], env: dict[str, str] | None = None) -> dict:
+        return {"transport": "stdio", "command": argv[0], "args": argv[1:], "env": {**os.environ, **(env or {})}}
