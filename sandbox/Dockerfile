@@ -1,8 +1,7 @@
 # Per-session agent computer. One container of this image is created for every chat session.
 # Build context is the repository root (so the web helper can be copied in):
 #   docker build -f sandbox/Dockerfile -t decillion-sandbox:latest .
-ARG PYTHON_IMAGE=python:3.12-slim-bookworm
-FROM ${PYTHON_IMAGE}
+FROM docker.arvancloud.ir/python:3.12-slim-bookworm
 
 ARG NODE_MAJOR=22
 ARG INSTALL_PLAYWRIGHT=false
@@ -19,6 +18,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     UV_PYTHON_DOWNLOADS=never \
     PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
     NPM_CONFIG_UPDATE_NOTIFIER=false
+
+RUN printf 'Types: deb\nURIs: http://mirror.cdn.ir/repository/debian\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n\nTypes: deb\nURIs: http://mirror.cdn.ir/repository/debian-security\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\n' > /etc/apt/sources.list.d/debian.sources
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git ripgrep jq curl wget ca-certificates gnupg procps psmisc \

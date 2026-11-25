@@ -14,7 +14,7 @@ x-restart: &restart
 
 services:
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    image: docker.arvancloud.ir/postgres:16-alpine
     <<: *restart
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-agent}

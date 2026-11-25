@@ -7,7 +7,7 @@ services:
   model-init:
     profiles: ["disabled"]
   llamacpp:
-    image: ghcr.io/ggml-org/llama.cpp:server
+    image: docker.arvancloud.ir/ggml-org/llama.cpp:server
     restart: unless-stopped
     command: >
       -hf hotdogs/Agents-A1-4B-kimi-Preview-heretic-GGUF:IQ4_NL
