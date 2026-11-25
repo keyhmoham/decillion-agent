@@ -1,5 +1,5 @@
 # Build context: repository root  (docker build -f backend/Dockerfile .)
-FROM python:3.12-slim-bookworm
+FROM docker.arvancloud.ir/python:3.12-slim-bookworm
 
 ARG DOCKER_CLI_VERSION=27.3.1
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
