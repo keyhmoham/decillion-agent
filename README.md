@@ -56,7 +56,9 @@ responses are in [docs/MODEL_NOTES.md](docs/MODEL_NOTES.md). Highlights:
 ```
 
 * **Tools**: `bash` (streaming output, background jobs), `read_file`/`write_file`/`edit_file`,
-  `list_dir`/`glob`/`grep`, `web_search`/`web_fetch` (run *inside* the sandbox, SSRF-guarded),
+  `list_dir`/`glob`/`grep`, `web_fetch` (runs *inside* the sandbox, SSRF-guarded), `web_search`
+  (resilient provider chain: bundled private SearXNG → Brave API → Bing → DuckDuckGo, with throttling,
+  cooldown after rate limits and caching),
   `write_todos`/`update_todo`, memory tools, `delegate_task`, `handoff`, and presentation tools
   `show_table`, `show_chart`, `show_stats`, `show_diagram` (Mermaid), `show_html` (isolated iframe),
   `show_image`, `show_callout`.
@@ -93,6 +95,17 @@ responses are in [docs/MODEL_NOTES.md](docs/MODEL_NOTES.md). Highlights:
 First-deployment checklist: `docker compose up --build` → open the UI → *Context → Run self-test*
 (all green) → ask for the "Build a CLI app" example → confirm a `a1-sbx-*` container appears
 (`docker ps`) and disappears when the session is deleted.
+
+## Troubleshooting
+
+Open **Context → Run diagnostics** in the UI (or `GET /api/diagnostics?session_id=…&probe_search=true`): it checks the
+Docker CLI/daemon, the sandbox image, every MCP binary inside the session sandbox and the search providers, and prints the fix.
+
+| Symptom | Cause / fix |
+|---|---|
+| MCP server error *"docker CLI is not installed in the backend container"* | old backend image: `docker compose build --no-cache backend` (the CLI is copied from the official multi-arch `docker:cli` image, so ARM/Apple Silicon works) |
+| MCP error *"'mcp-server-xyz' is not installed in the sandbox image"* | `docker compose build --no-cache sandbox-image`, then **start a new session** (existing sessions keep their old container; the build fails if any MCP binary is missing) |
+| `web_search` fails with rate-limit text | DuckDuckGo/Bing throttle scrapers. The bundled `searxng` service is the primary provider; check `docker compose ps searxng`. Optional: set `BRAVE_API_KEY`. Providers that rate-limit are skipped for 90 s and results are cached for 10 min |
 
 ## Development
 

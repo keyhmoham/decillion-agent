@@ -17,6 +17,7 @@ class McpPreset:
     name: str
     description: str
     argv: tuple[str, ...]
+    binary: str = ""          # executable that must exist in the sandbox image (checked before launch)
     category: str = "utility"
     default: bool = False
     approx_tools: int = 3
@@ -35,29 +36,31 @@ class McpPreset:
 PRESETS: dict[str, McpPreset] = {
     p.id: p
     for p in [
-        McpPreset("time", "Time", "Current time and timezone conversion.", ("mcp-server-time",), "utility", True, 3,
+        McpPreset("time", "Time", "Current time and timezone conversion.", ("mcp-server-time",), "mcp-server-time", "utility", True, 3,
                   homepage="https://github.com/modelcontextprotocol/servers"),
         McpPreset("git", "Git", "Inspect and operate on git repositories (status, diff, log, commit, branch).",
-                  ("mcp-server-git", "--repository", "/workspace"), "dev", True, 12),
+                  # mcp-server-git refuses to start outside a repository, so make sure the workspace is one
+                  ("bash", "-c", "[ -d /workspace/.git ] || git init -q /workspace; exec mcp-server-git --repository /workspace"),
+                  "mcp-server-git", "dev", True, 12),
         McpPreset("sequential-thinking", "Sequential Thinking", "Structured step-by-step problem decomposition tool.",
-                  ("mcp-server-sequential-thinking",), "reasoning", True, 1),
+                  ("mcp-server-sequential-thinking",), "mcp-server-sequential-thinking", "reasoning", True, 1),
         McpPreset("fetch", "Fetch", "Fetch a URL and convert it to markdown (alternative to web_fetch).",
-                  ("mcp-server-fetch",), "web", False, 1),
+                  ("mcp-server-fetch",), "mcp-server-fetch", "web", False, 1),
         McpPreset("filesystem", "Filesystem", "Rich file operations (tree, search, move, multi-read). Overlaps native file tools.",
-                  ("mcp-server-filesystem", "/workspace"), "dev", False, 12),
+                  ("mcp-server-filesystem", "/workspace"), "mcp-server-filesystem", "dev", False, 12),
         McpPreset("memory", "Knowledge-graph memory", "Entity/relation knowledge graph persisted in the workspace.",
-                  ("mcp-server-memory",), "memory", False, 9),
+                  ("mcp-server-memory",), "mcp-server-memory", "memory", False, 9),
         McpPreset("playwright", "Playwright browser", "Drive a headless browser: navigate, click, screenshot, scrape.",
-                  ("playwright-mcp", "--headless", "--no-sandbox"), "web", False, 20),
+                  ("playwright-mcp", "--headless", "--no-sandbox"), "playwright-mcp", "web", False, 20),
         McpPreset("context7", "Context7 docs", "Up-to-date library documentation lookup.",
-                  ("context7-mcp",), "docs", False, 2),
+                  ("context7-mcp",), "context7-mcp", "docs", False, 2),
         McpPreset("sqlite", "SQLite", "Query and modify a SQLite database file.", ("mcp-server-sqlite", "--db-path", "/workspace/data.db"),
-                  "data", False, 6),
+                  "mcp-server-sqlite", "data", False, 6),
         McpPreset("github", "GitHub", "Issues, PRs, code search and repository operations (needs a token).",
-                  ("mcp-server-github",), "dev", False, 25, env_from_settings={"GITHUB_PERSONAL_ACCESS_TOKEN": "GITHUB_TOKEN"},
+                  ("mcp-server-github",), "mcp-server-github", "dev", False, 25, env_from_settings={"GITHUB_PERSONAL_ACCESS_TOKEN": "GITHUB_TOKEN"},
                   requires=("GITHUB_TOKEN",)),
         McpPreset("brave-search", "Brave Search", "Web and local search via the Brave API (needs a key).",
-                  ("mcp-server-brave-search",), "web", False, 2, env_from_settings={"BRAVE_API_KEY": "BRAVE_API_KEY"},
+                  ("mcp-server-brave-search",), "mcp-server-brave-search", "web", False, 2, env_from_settings={"BRAVE_API_KEY": "BRAVE_API_KEY"},
                   requires=("BRAVE_API_KEY",)),
     ]
 }

@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from .. import __version__
 from ..agents.roles import ROLES
+from ..diagnostics import run_diagnostics
 from ..llm.profile import DEFAULT_PROFILE
 from ..llm.selftest import results_to_dicts, run_selftest
 from ..mcp.catalog import PRESETS
@@ -70,6 +71,16 @@ async def config(c: Container = Depends(get_container)):
         "roles": [{"name": r.name, "title": r.title, "description": r.description, "color": r.color} for r in ROLES.values()],
         "auth_required": bool(s.app_api_key),
     }
+
+
+@protected.get("/diagnostics")
+async def diagnostics(session_id: str | None = None, probe_search: bool = False, c: Container = Depends(get_container)):
+    sb = None
+    if session_id:
+        await _session_or_404(c, session_id)
+        sb = c.sandboxes.get(session_id)
+        await sb.ensure()
+    return {"checks": await run_diagnostics(c.settings, search=c.search, sandbox=sb, probe_search=probe_search)}
 
 
 @protected.post("/model/selftest")

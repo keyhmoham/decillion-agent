@@ -268,3 +268,13 @@ async def test_delegate_tool_events_not_duplicated(app_client):
     starts = [e["message_id"] for e in evs if e["type"] == "message_start"]
     assert len(starts) == len(set(starts)) == 3  # main, worker, main
     assert any(e["type"] == "delegation" for e in evs)
+
+
+async def test_diagnostics_endpoint(app_client):
+    client, c, be = app_client
+    sid = (await client.post("/api/sessions", json={"config": {"mcp": []}})).json()["id"]
+    d = (await client.get("/api/diagnostics", params={"session_id": sid})).json()["checks"]
+    names = {r["name"] for r in d}
+    assert {"sandbox backend", "MCP servers in sandbox image", "web search providers"} <= names
+    search_row = next(r for r in d if r["name"] == "web search providers")
+    assert "bing" in search_row["detail"] and "SEARXNG_URL" in search_row["fix"]

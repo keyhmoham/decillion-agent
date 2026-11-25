@@ -3,6 +3,7 @@
 #   frontend  -> http://localhost:${WEB_PORT:-3000}
 #   backend   -> FastAPI + LangGraph agents (talks to the Docker daemon to create one sandbox per chat session)
 #   postgres  -> sessions, messages, memory, LangGraph checkpoints
+#   searxng   -> private metasearch engine behind the web_search tool
 #   ollama    -> serves nutboy02/Agents-A1-4B-Kimi-heretic (pulled automatically on first start)
 #   sandbox-image -> builds the per-session agent computer image, then exits
 
@@ -26,6 +27,22 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  # Private metasearch engine (aggregates Google/Bing/DuckDuckGo/Brave/Wikipedia...). It is the primary backend
+  # of the web_search tool and avoids the rate limits of scraping a single engine. Not published to the host.
+  searxng:
+    image: searxng/searxng:latest
+    <<: *restart
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-decillion-local-searxng-secret-change-me}
+      SEARXNG_BASE_URL: http://searxng:8080/
+    volumes:
+      - ./docker/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETGID, SETUID]
+    logging:
+      driver: json-file
+      options: { max-size: "1m", max-file: "1" }
 
   ollama:
     image: ollama/ollama:latest
@@ -81,6 +98,8 @@ services:
     image: decillion-backend:latest
     <<: *restart
     depends_on:
+      searxng:
+        condition: service_started
       postgres:
         condition: service_healthy
       model-init:
@@ -107,6 +126,8 @@ services:
       SANDBOX_MEMORY: ${SANDBOX_MEMORY:-2g}
       SANDBOX_CPUS: ${SANDBOX_CPUS:-2}
       SANDBOX_IDLE_MINUTES: ${SANDBOX_IDLE_MINUTES:-45}
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
+      SEARCH_PROVIDERS: ${SEARCH_PROVIDERS:-searxng,brave,bing,duckduckgo}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       BRAVE_API_KEY: ${BRAVE_API_KEY:-}
     volumes:

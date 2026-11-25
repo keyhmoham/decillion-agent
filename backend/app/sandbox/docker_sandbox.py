@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
+import os
 import tarfile
 import time
 import uuid
@@ -335,7 +336,12 @@ class DockerSandbox(Sandbox):
         for k, v in (env or {}).items():
             args += ["-e", f"{k}={v}"]
         args += [self.name, *argv]
-        return "docker", args, None
+        # The MCP stdio client starts the child with a minimal environment; the docker CLI needs to
+        # find the daemon (DOCKER_HOST / socket-proxy / TLS settings) exactly like the SDK does.
+        keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CERT_PATH", "DOCKER_TLS_VERIFY", "DOCKER_CONTEXT")
+        env_out = {k: os.environ[k] for k in keep if k in os.environ}
+        env_out.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+        return "docker", args, env_out
 
 
 def settings_timeout(s: Settings) -> int:

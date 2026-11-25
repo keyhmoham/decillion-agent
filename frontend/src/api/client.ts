@@ -41,6 +41,7 @@ export interface SessionState {
 export const api = {
   health: () => req<{ status: string; model: any; database: boolean; auth_required: boolean }>("/health"),
   config: () => req<AppConfig>("/config"),
+  diagnostics: (sessionId?: string, probeSearch = false) => req<{ checks: { name: string; ok: boolean | null; detail: string; fix: string }[] }>(`/diagnostics${q({ session_id: sessionId, probe_search: probeSearch || undefined })}`),
   selftest: () => req<{ passed: boolean; results: { name: string; passed: boolean; detail: string; seconds: number }[] }>("/model/selftest", { method: "POST" }),
   sessions: () => req<Session[]>("/sessions"),
   createSession: (config?: Partial<SessionConfig>) => req<Session>("/sessions", { method: "POST", body: JSON.stringify({ config: config ?? {} }) }),

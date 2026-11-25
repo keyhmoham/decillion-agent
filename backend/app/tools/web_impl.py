@@ -8,6 +8,7 @@ This single file is used in two places:
   sandbox network, never by the backend's network (which can see PostgreSQL & friends).
 
 Only the standard library plus ``beautifulsoup4`` / ``html2text`` (optional) are required.
+(Web *search* lives in ``app/tools/search.py`` and runs in the backend.)
 """
 
 from __future__ import annotations
@@ -114,62 +115,12 @@ def fetch_url(url: str, max_chars: int = 12000) -> dict:
     return {"url": final, "status": status, "title": title, "content_type": ctype, "text": text[:max_chars], "truncated": truncated, "total_chars": len(text)}
 
 
-def _ddg_unwrap(href: str) -> str:
-    if href.startswith("//"):
-        href = "https:" + href
-    parsed = urllib.parse.urlparse(href)
-    if parsed.netloc.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
-        q = urllib.parse.parse_qs(parsed.query)
-        if "uddg" in q:
-            return q["uddg"][0]
-    return href
-
-
-def search_web(query: str, n: int = 6) -> list[dict]:
-    searx = os.environ.get("SEARXNG_URL")
-    if searx:
-        url = searx.rstrip("/") + "/search?" + urllib.parse.urlencode({"q": query, "format": "json"})
-        req = urllib.request.Request(url, headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=25) as resp:  # noqa: S310
-            data = json.loads(resp.read())
-        return [{"title": r.get("title", ""), "url": r.get("url", ""), "snippet": r.get("content", "")} for r in data.get("results", [])[:n]]
-
-    from bs4 import BeautifulSoup
-
-    data = urllib.parse.urlencode({"q": query}).encode()
-    req = urllib.request.Request("https://html.duckduckgo.com/html/", data=data, headers={"User-Agent": UA})
-    try:
-        with urllib.request.urlopen(req, timeout=25) as resp:  # noqa: S310
-            html = resp.read().decode("utf-8", "replace")
-    except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
-        raise WebError(f"Search failed: {getattr(exc, 'reason', exc)}") from exc
-    soup = BeautifulSoup(html, "html.parser")
-    results = []
-    for block in soup.select("div.result"):
-        a = block.select_one("a.result__a")
-        if not a:
-            continue
-        snip = block.select_one(".result__snippet")
-        results.append({"title": a.get_text(" ", strip=True), "url": _ddg_unwrap(a.get("href", "")), "snippet": snip.get_text(" ", strip=True) if snip else ""})
-        if len(results) >= n:
-            break
-    if not results:
-        raise WebError("No results (the search provider may be rate limiting; try different wording or fetch a known URL).")
-    return results
-
-
-def format_results(results: list[dict]) -> str:
-    return "\n\n".join(f"{i}. {r['title']}\n   {r['url']}\n   {r['snippet']}" for i, r in enumerate(results, 1))
-
-
 def _cli(argv: list[str]) -> int:
     try:
         if argv[0] == "fetch":
             out = fetch_url(argv[1], int(argv[2]) if len(argv) > 2 else 12000)
-        elif argv[0] == "search":
-            out = {"results": search_web(argv[1], int(argv[2]) if len(argv) > 2 else 6)}
         else:
-            raise WebError("usage: a1_web.py fetch URL [max_chars] | search QUERY [n]")
+            raise WebError("usage: a1_web.py fetch URL [max_chars]")
         print(json.dumps(out, ensure_ascii=False))
         return 0
     except WebError as exc:

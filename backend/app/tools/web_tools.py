@@ -10,6 +10,7 @@ from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from . import web_impl
+from .search import SearchError, SearchService, build_providers, format_results
 from .base import ToolError, make_tool
 from .context import ToolContext
 
@@ -26,6 +27,19 @@ class SearchArgs(BaseModel):
     num_results: int = Field(6, description="How many results to return (1-10).")
 
 
+_DEFAULT: dict[tuple, SearchService] = {}
+
+
+def get_search_service(ctx: ToolContext) -> SearchService:
+    if ctx.search is not None:
+        return ctx.search
+    s = ctx.settings
+    key = (s.search_providers, s.searxng_url, s.brave_api_key)
+    if key not in _DEFAULT:
+        _DEFAULT[key] = SearchService(build_providers(*key))
+    return _DEFAULT[key]
+
+
 def build_web_tools(ctx: ToolContext) -> list[BaseTool]:
     sb = ctx.sandbox
     cap = ctx.settings.web_fetch_max_chars
@@ -39,10 +53,7 @@ def build_web_tools(ctx: ToolContext) -> list[BaseTool]:
                 raise ToolError(f"web helper failed: {(res.stderr or res.stdout)[:300]}") from exc
         else:
             try:
-                if op == "fetch":
-                    data = await asyncio.to_thread(web_impl.fetch_url, arg, n)
-                else:
-                    data = {"results": await asyncio.to_thread(web_impl.search_web, arg, n)}
+                data = await asyncio.to_thread(web_impl.fetch_url, arg, n)
             except web_impl.WebError as exc:
                 raise ToolError(str(exc)) from exc
         if "error" in data:
@@ -56,8 +67,11 @@ def build_web_tools(ctx: ToolContext) -> list[BaseTool]:
         return f"{head}\n\n{data['text']}{tail}"
 
     async def web_search(query: str, num_results: int = 6) -> str:
-        data = await run("search", query, min(max(1, int(num_results)), 10))
-        return web_impl.format_results(data["results"])
+        try:
+            results, provider = await get_search_service(ctx).search(query, min(max(1, int(num_results)), 10))
+        except SearchError as exc:
+            raise ToolError(str(exc)) from exc
+        return format_results(results, provider)
 
     return [
         make_tool("web_search", "Search the web. Returns titles, URLs and snippets. Follow up with web_fetch to read a page.", SearchArgs, web_search, category="web"),
