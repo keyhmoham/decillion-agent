@@ -182,11 +182,11 @@ async def test_list_dir_parsing_and_exists():
     assert await sb.exists("/workspace") == "dir"
 
 
-async def test_mcp_stdio_goes_through_docker_exec_inside_the_sandbox():
+async def test_mcp_spec_runs_inside_the_sandbox_via_sdk_not_the_docker_cli():
     sb, _ = box(FakeClient())
-    cmd, args, env = sb.mcp_stdio(["mcp-server-time"], {"TOKEN": "x"})
-    assert cmd == "docker" and args[:2] == ["exec", "-i"] and "a1-sbx-0123abcd0000" in args
-    assert args[-1] == "mcp-server-time" and "TOKEN=x" in args and "PATH" in env
+    spec = sb.mcp_spec(["mcp-server-time"], {"TOKEN": "x"})
+    assert spec == {"transport": "sandbox_exec", "argv": ["mcp-server-time"], "env": {"TOKEN": "x"}}
+    assert "command" not in spec  # nothing is spawned on the backend host
 
 
 async def test_stop_and_destroy():

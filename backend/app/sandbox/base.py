@@ -118,8 +118,11 @@ class Sandbox(ABC):
 
     # -- MCP ----------------------------------------------------------------------------
     @abstractmethod
-    def mcp_stdio(self, argv: list[str], env: dict[str, str] | None = None) -> tuple[str, list[str], dict[str, str] | None]:
-        """(command, args, env) that start ``argv`` *inside* this sandbox over stdio."""
+    def mcp_spec(self, argv: list[str], env: dict[str, str] | None = None) -> dict[str, Any]:
+        """Connection spec that starts ``argv`` *inside* this sandbox (``stdio`` or ``sandbox_exec``)."""
+
+    async def open_stdio(self, argv: list[str], env: dict[str, str] | None = None):  # pragma: no cover - docker only
+        raise NotImplementedError
 
     # -- helpers ------------------------------------------------------------------------
     def resolve(self, path: str) -> str:

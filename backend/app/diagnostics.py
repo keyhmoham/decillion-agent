@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 from typing import Any
 
 from .config import Settings
@@ -20,10 +19,6 @@ async def run_diagnostics(settings: Settings, *, search: Any = None, sandbox: Sa
 
     # ---- sandbox backend --------------------------------------------------------------------------
     if settings.sandbox_backend == "docker":
-        cli = shutil.which("docker")
-        rows.append(_row("docker CLI (backend)", bool(cli), cli or "not found",
-                         "" if cli else "MCP servers start via `docker exec`. Rebuild the backend image: docker compose build backend"))
-
         def _daemon() -> tuple[bool, str]:
             try:
                 import docker

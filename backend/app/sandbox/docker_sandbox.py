@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-import os
+import socket
 import tarfile
+import threading
 import time
 import uuid
 from typing import Any
@@ -331,17 +332,102 @@ class DockerSandbox(Sandbox):
         return await asyncio.to_thread(_arch)
 
     # ------------------------------------------------------------------ MCP
-    def mcp_stdio(self, argv: list[str], env: dict[str, str] | None = None) -> tuple[str, list[str], dict[str, str] | None]:
-        args = ["exec", "-i", "-w", self.workdir, "-u", self.s.sandbox_user]
-        for k, v in (env or {}).items():
-            args += ["-e", f"{k}={v}"]
-        args += [self.name, *argv]
-        # The MCP stdio client starts the child with a minimal environment; the docker CLI needs to
-        # find the daemon (DOCKER_HOST / socket-proxy / TLS settings) exactly like the SDK does.
-        keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CERT_PATH", "DOCKER_TLS_VERIFY", "DOCKER_CONTEXT")
-        env_out = {k: os.environ[k] for k in keep if k in os.environ}
-        env_out.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
-        return "docker", args, env_out
+    def mcp_spec(self, argv: list[str], env: dict[str, str] | None = None) -> dict:
+        """Run ``argv`` inside this container with stdin/stdout attached (no docker CLI needed)."""
+        return {"transport": "sandbox_exec", "argv": list(argv), "env": dict(env or {})}
+
+    async def open_stdio(self, argv: list[str], env: dict[str, str] | None = None) -> "DockerExecPipe":
+        await self.ensure()
+        pipe = DockerExecPipe(self, argv, env or {})
+        await pipe.start()
+        return pipe
+
+
+class DockerExecPipe:
+    """A long-lived ``docker exec -i`` through the SDK: demultiplexes Docker's stdout/stderr frames."""
+
+    GRACE = 3.0
+
+    def __init__(self, box: DockerSandbox, argv: list[str], env: dict[str, str]) -> None:
+        self.box, self.argv = box, argv
+        self.marker = uuid.uuid4().hex[:12]
+        self.env = {**env, "A1_MCP_ID": self.marker}
+        self.sock: Any = None
+        self.exec_id = ""
+        self._q: asyncio.Queue = asyncio.Queue()
+        self._stderr = bytearray()
+        self._eof = asyncio.Event()
+
+    async def start(self) -> None:
+        loop = asyncio.get_running_loop()
+
+        def _open():
+            api = self.box.client.api
+            c = self.box._get()
+            if c is None:
+                raise SandboxError("sandbox container disappeared")
+            ex = api.exec_create(
+                c.id, self.argv, stdin=True, stdout=True, stderr=True, tty=False,
+                user=self.box.s.sandbox_user, workdir=self.box.workdir, environment=self.env,
+            )
+            return ex["Id"], api.exec_start(ex["Id"], detach=False, tty=False, socket=True)
+
+        self.exec_id, self.sock = await asyncio.to_thread(_open)
+
+        def _reader() -> None:
+            from docker.utils.socket import frames_iter
+
+            try:
+                for stream, data in frames_iter(self.sock, tty=False):
+                    if stream == 1:  # stdout
+                        loop.call_soon_threadsafe(self._q.put_nowait, bytes(data))
+                    else:  # stderr: keep the tail for diagnostics
+                        self._stderr.extend(data)
+                        del self._stderr[:-4096]
+            except Exception as exc:  # noqa: BLE001
+                log.debug("exec stream ended: %r", exc)
+            finally:
+                loop.call_soon_threadsafe(self._q.put_nowait, None)
+
+        threading.Thread(target=_reader, name=f"mcp-exec-{self.marker}", daemon=True).start()
+
+    def _raw(self):
+        return getattr(self.sock, "_sock", self.sock)
+
+    async def read(self) -> bytes | None:
+        item = await self._q.get()
+        if item is None:
+            self._eof.set()
+            self._q.put_nowait(None)  # keep returning EOF to later callers
+        return item
+
+    async def write(self, data: bytes) -> None:
+        await asyncio.to_thread(self._raw().sendall, data)
+
+    def stderr_tail(self) -> str:
+        return bytes(self._stderr).decode("utf-8", "replace").strip()[-600:]
+
+    async def close(self) -> None:
+        # 1) polite: half-close stdin, MCP servers exit on EOF
+        try:
+            self._raw().shutdown(socket.SHUT_WR)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            await asyncio.wait_for(self._eof.wait(), self.GRACE)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            # 2) firm: kill the process tree that carries our marker in its environment
+            script = ('for p in /proc/[0-9]*; do tr "\\0" "\\n" < $p/environ 2>/dev/null | grep -qx "A1_MCP_ID=%s" '
+                      '&& kill -TERM ${p#/proc/} 2>/dev/null; done; true') % self.marker
+            try:
+                await self.box.exec(script, timeout=10)
+            except Exception:  # noqa: BLE001
+                pass
+        finally:
+            try:
+                self.sock.close()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 def settings_timeout(s: Settings) -> int:
